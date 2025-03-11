@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Ny_slopar</string>
+    <string name="fetch_terrain">Fetch Terrain</string>
+    <string name="center_gps">Center to GPS</string>
+</resources>

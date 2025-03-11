@@ -1,0 +1,33 @@
+material {
+    name : "TerrainMaterial",
+    shadingModel : lit,
+    doubleSided : true,
+
+    parameters : [
+        {
+            type : float4,
+            name : baseColor
+        }
+    ],
+
+    requires : [
+        position,
+        tangents,
+        uv0 // ✅ Added UV coordinates
+    ],
+
+    blending : opaque // ✅ Ensures no transparency issues
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+
+        material.baseColor = materialParams.baseColor; // ✅ Correct base color
+        material.roughness = 0.5;
+        material.metallic = 0.0;
+
+        material.normal = vec3(0.0, 0.0, 1.0); // ✅ Ensure valid normal
+        material.clearCoat = 0.0; // ✅ No clear coat
+    }
+}
