@@ -25,6 +25,7 @@ class FilamentRenderer(private val surfaceView: SurfaceView, context: Context) {
     private var rotationAngleX = 0.0
     private var rotationAngleY = 30.0
 
+
     private val gestureDetector = GestureDetector(context, GestureListener())
     private val scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
 
@@ -76,11 +77,11 @@ class FilamentRenderer(private val surfaceView: SurfaceView, context: Context) {
         }
 
 
-        // ✅ Indirect Lighting (Simulated Ambient Light)
-//        val indirectLight = IndirectLight.Builder()
-//            .intensity(10000f) // ✅ Indirect light to avoid full darkness
-//            .build(engine)
-//        scene.indirectLight = indirectLight
+//         ✅ Indirect Lighting (Simulated Ambient Light)
+        val indirectLight = IndirectLight.Builder()
+            .intensity(10000f) // ✅ Indirect light to avoid full darkness
+            .build(engine)
+        scene.indirectLight = indirectLight
 
         Log.d("FilamentRenderer", "✅ Light & Shadows setup completed!")
     }

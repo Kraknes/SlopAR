@@ -63,10 +63,10 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val latStart = 69.595843
-        val lonStart = 19.106558
+        val latStart = 69.631025
+        val lonStart = 18.867176
         val gridSize = 25  // Fetch a 50x50 grid
-        val stepSize = 0.001
+        val stepSize = 0.005
 
         val coordinates = mutableListOf<Pair<Double, Double>>()
 
@@ -165,20 +165,22 @@ class MainActivity : AppCompatActivity() {
     fun onElevationDataFetched(elevationData: List<List<Double>>) {
         Log.d("ElevationData", "✅ Processing elevation data...")
 
-        // ✅ Destroy previous terrain before reloading
         terrainMesh?.destroyMesh()
-
-        // ✅ Apply new terrain mesh
         terrainMesh = TerrainMesh(filamentRenderer.engine, elevationData, this@MainActivity)
 
         val renderable = terrainMesh?.getRenderable()
         if (renderable != null && renderable != 0) {
             filamentRenderer.addRenderable(renderable)
             filamentRenderer.render()
+
+            // ✅ Force a full render cycle
+            surfaceView.postDelayed({ filamentRenderer.render() }, 100)
+
             Log.d("MainActivity", "✅ Terrain added and rendering started!")
         } else {
             Log.e("MainActivity", "❌ Renderable entity is invalid! Terrain might not be visible.")
         }
     }
+
 
 }

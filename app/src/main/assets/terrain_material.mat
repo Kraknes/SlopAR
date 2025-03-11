@@ -1,33 +1,34 @@
 material {
-    name : "TerrainMaterial",
+    name : terrain_material,
     shadingModel : lit,
-    doubleSided : true,
-
     parameters : [
-        {
-            type : float4,
-            name : baseColor
-        }
+        { type : float, name : minHeight },
+        { type : float, name : maxHeight }
     ],
-
-    requires : [
-        position,
-        tangents,
-        uv0 // ✅ Added UV coordinates
-    ],
-
-    blending : opaque // ✅ Ensures no transparency issues
+    requires : [ uv0 ],
+    culling : none  // ✅ Disable backface culling
 }
 
 fragment {
     void material(inout MaterialInputs material) {
         prepareMaterial(material);
 
-        material.baseColor = materialParams.baseColor; // ✅ Correct base color
-        material.roughness = 0.5;
-        material.metallic = 0.0;
+        // Normalized height from 0 (low) to 1 (high)
+        float heightNorm = clamp(getUV0().y, 0.0, 1.0);
 
-        material.normal = vec3(0.0, 0.0, 1.0); // ✅ Ensure valid normal
-        material.clearCoat = 0.0; // ✅ No clear coat
+        // Multi-color gradient
+        vec3 color;
+        if (heightNorm < 0.33) {
+            // Low elevations (Blue → Green)
+            color = mix(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), heightNorm / 0.33);
+        } else if (heightNorm < 0.66) {
+            // Mid elevations (Green → Yellow)
+            color = mix(vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), (heightNorm - 0.33) / 0.33);
+        } else {
+            // High elevations (Yellow → Red)
+            color = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), (heightNorm - 0.66) / 0.34);
+        }
+
+        material.baseColor.rgb = color;
     }
 }
