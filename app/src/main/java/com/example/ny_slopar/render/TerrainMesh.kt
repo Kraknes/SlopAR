@@ -25,7 +25,7 @@ class TerrainMesh(
 
     private fun loadMaterial() {
         try {
-            val buffer = context.assets.open("terrain_material.filamat").use { it.readBytes() }
+            val buffer = context.assets.open("height_colored_material.filamat").use { it.readBytes() }
             val byteBuffer = ByteBuffer.allocateDirect(buffer.size)
                 .order(ByteOrder.nativeOrder())
                 .put(buffer)
@@ -36,11 +36,12 @@ class TerrainMesh(
                 .build(engine)
 
             if (loadedMaterial == null) {
-                Log.e("TerrainMesh", "❌ Failed to create material from filamat!")
+                Log.e("TerrainMesh", "❌ Failed to create height-colored material!")
             } else {
                 material = loadedMaterial.createInstance()
-                material?.setParameter("baseColor", Colors.RgbType.SRGB, 1.0f, 0.6f, 0.3f) // ✅ Apply color!
-                Log.d("TerrainMesh", "✅ Material loaded successfully!")
+                material?.setParameter("minHeight", minElevation.toFloat()) // ✅ Base elevation
+                material?.setParameter("maxHeight", maxElevation.toFloat()) // ✅ Highest point
+                Log.d("TerrainMesh", "✅ Height-based material loaded successfully!")
             }
 
         } catch (e: Exception) {
@@ -66,7 +67,7 @@ class TerrainMesh(
         val maxElevation = elevationData.flatten().maxOrNull() ?: minElevation
         val elevationRange = maxElevation - minElevation
         val scaleFactor =
-            if (elevationRange == 0.0) 1.0 else 10.0 / elevationRange // ✅ Scale for visibility
+            if (elevationRange == 0.0) 1.0 else 20.0 / elevationRange // ✅ Scale for visibility
 
         // ✅ Faster loop instead of coroutines
         for (y in elevationData.indices) {
@@ -136,7 +137,18 @@ class TerrainMesh(
             .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vertexBuffer, indexBuffer)
             .material(0, material!!)
             .boundingBox(Box(floatArrayOf(0f, 0f, 0f), floatArrayOf(100f, 50f, 100f)))
+            .castShadows(true) // ✅ Allow terrain to cast & receive shadows
+            .receiveShadows(true) // ✅ Ensure terrain gets proper shadows
             .build(engine, renderable)
+
+        // ✅ Add a wireframe material overlay
+        RenderableManager.Builder(1)
+            .geometry(0, RenderableManager.PrimitiveType.LINES, vertexBuffer, indexBuffer) // ✅ Render as lines
+            .material(0, material!!) // ✅ Use the same material or a separate one
+            .build(engine, renderable)
+
+
+
 
         Log.d("TerrainMesh", "✅ Generated 100x100 terrain mesh successfully.")
     }

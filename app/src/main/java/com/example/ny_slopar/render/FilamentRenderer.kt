@@ -46,31 +46,45 @@ class FilamentRenderer(private val surfaceView: SurfaceView, context: Context) {
             .build(engine)
         view.scene = scene
         camera.setProjection(90.0, 16.0 / 9.0, 0.1, 10000.0, Camera.Fov.VERTICAL)
+
+        renderer.clearOptions = Renderer.ClearOptions().apply {
+            clear = true
+            clearColor = floatArrayOf(0.8f, 0.85f, 0.9f, 1.0f) // ✅ Light background for better contrast
+        }
+
         updateCamera()
     }
 
-    private fun setupLight() {
-        val entityManager = EntityManager.get()
 
-        // ☀️ Sunlight (Directional Light)
-        val sunlight = entityManager.create()
+    private fun setupLight() {
+        val sunlight = EntityManager.get().create()
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
-            .color(1.0f, 1.0f, 0.9f) // Slightly warm sunlight
-            .intensity(100000.0f) // ✅ Strong light
-            .direction(-1.0f, 10f, -50.0f) // ✅ Angle it from above
-            .castShadows(true) // ✅ Enable shadows
+            .color(1.0f, 1.0f, 1.0f) // ✅ Pure white sunlight
+            .intensity(120000.0f) // ✅ Stronger light for better contrast
+            .direction(-1f, 1.5f, -2.5f) // ✅ Adjusted to cast proper shadows
+            .castShadows(true) // ✅ Enable real-time shadows
             .build(engine, sunlight)
+
         scene.addEntity(sunlight)
 
-        // 🌎 Ambient Light (Indirect Light)
-        val indirectLight = IndirectLight.Builder()
-            .intensity(50_000f) // ✅ Increase ambient brightness
-            .build(engine)
+        // ✅ Enable Shadows in Scene
+        val shadowOptions = LightManager.ShadowOptions().apply {
+            mapSize = 4096 // ✅ High resolution shadow map
+            constantBias = 0.0005f // ✅ Reduce shadow acne
+            normalBias = 0.005f // ✅ Prevent floating shadows
+            shadowFar = 3000.0f // ✅ Ensure large terrain is covered by shadows
+        }
 
-        scene.indirectLight = indirectLight // ✅ Assign indirect lighting
 
-        Log.d("FilamentRenderer", "✅ Lighting setup completed: Sunlight + Ambient")
+        // ✅ Indirect Lighting (Simulated Ambient Light)
+//        val indirectLight = IndirectLight.Builder()
+//            .intensity(10000f) // ✅ Indirect light to avoid full darkness
+//            .build(engine)
+//        scene.indirectLight = indirectLight
+
+        Log.d("FilamentRenderer", "✅ Light & Shadows setup completed!")
     }
+
 
 
 

@@ -63,12 +63,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val latStart = 69.667545
-        val lonStart = 18.87583
+        val latStart = 69.595843
+        val lonStart = 19.106558
         val gridSize = 25  // Fetch a 50x50 grid
-        val stepSize = 0.005
+        val stepSize = 0.001
 
         val coordinates = mutableListOf<Pair<Double, Double>>()
+
 
         for (y in 0 until gridSize) {
             for (x in 0 until gridSize) {
@@ -106,6 +107,7 @@ class MainActivity : AppCompatActivity() {
                                 val elevation =
                                     if (terrainType == "Havflate") 0.0 else point.elevation
                                 elevationData[y][x] = elevation
+
                             }
                         }
                     }
