@@ -45,7 +45,7 @@ class FilamentRenderer(private val surfaceView: SurfaceView, context: Context) {
         view.camera = camera
         scene.skybox = null
         view.scene = scene
-        camera.setProjection(45.0, 16.0 / 9.0, 0.1, 1000000.0, Camera.Fov.VERTICAL)
+        camera.setProjection(45.0, 16.0 / 9.0, 0.1, 3000000.0, Camera.Fov.VERTICAL)
 
         renderer.clearOptions = Renderer.ClearOptions().apply {
             clear = true
@@ -178,8 +178,8 @@ class FilamentRenderer(private val surfaceView: SurfaceView, context: Context) {
                 newPosition.x.pow(2) + newPosition.y.pow(2) + newPosition.z.pow(2)
             )
 
-            val minDistance = 5f
-            val maxDistance = 10000f
+            val minDistance = 1f
+            val maxDistance = 30000f
 
             if (distanceFromOrigin in minDistance..maxDistance) {
                 position = newPosition // ✅ Now correctly assigned as Float3

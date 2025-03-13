@@ -1,28 +1,24 @@
 package com.example.ny_slopar
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Bundle
 import android.util.Log
 import android.view.SurfaceView
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
-import com.example.ny_slopar.network.ElevationResponse
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.ny_slopar.network.NveApiService
 import com.example.ny_slopar.render.FilamentRenderer
 import com.example.ny_slopar.render.TerrainMesh
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import retrofit2.*
+import com.google.android.gms.location.*
+import kotlinx.coroutines.*
+import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
-import org.json.JSONObject
 import java.net.URLEncoder
-
 
 class MainActivity : AppCompatActivity() {
 
@@ -31,6 +27,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var surfaceView: SurfaceView
     private lateinit var fetchTerrainButton: Button
     private lateinit var api: NveApiService
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var cachedElevationData: List<List<Double>>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,50 +46,102 @@ class MainActivity : AppCompatActivity() {
             .build()
             .create(NveApiService::class.java)
 
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        // ✅ Request location and fetch elevation on button click
         fetchTerrainButton.setOnClickListener {
-            fetchElevationData()
+            requestLocationPermission()
         }
     }
 
-    private var cachedElevationData: List<List<Double>>? = null
+    // ✅ Ask for location permission before fetching GPS data
+    private fun requestLocationPermission() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        } else {
+            getCurrentLocation()
+        }
+    }
 
+    // ✅ Fetch the user's GPS location
+    @SuppressLint("MissingPermission")
+    private fun getCurrentLocation() {
+        fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+            if (location != null) {
+                val latitude = location.latitude
+                val longitude = location.longitude
 
-    private fun fetchElevationData() {
+                Log.d("GPS", "📍 User location: $latitude, $longitude")
+
+                // Call fetchElevationData with the correct location
+                fetchElevationData(latitude, longitude)
+            } else {
+                Log.e("GPS", "❌ Failed to get location")
+            }
+        }
+    }
+
+    // ✅ Fetch elevation data using the user's current GPS location
+    private fun fetchElevationData(latCenter: Double, lonCenter: Double) {
         if (cachedElevationData != null) {
             Log.d("ElevationData", "✅ Using cached elevation data!")
             onElevationDataFetched(cachedElevationData!!)
             return
         }
 
-        val latStart = 69.631025
-        val lonStart = 18.867176
-        val gridSize = 25  // Fetch a 50x50 grid
+        val gridSize = 25  // 25x25 grid
         val stepSize = 0.005
 
+        val halfGrid = gridSize / 2  // Half of the grid in each direction
         val coordinates = mutableListOf<Pair<Double, Double>>()
-
 
         for (y in 0 until gridSize) {
             for (x in 0 until gridSize) {
-                val lat = latStart + (y * stepSize)
-                val lon = lonStart + (x * stepSize * 2)
-                coordinates.add(Pair(lon, lat)) // ✅ Ensure (Easting, Northing) order
+                val lat = latCenter + ((y - halfGrid) * stepSize)
+                val lon = lonCenter + ((x - halfGrid) * stepSize * 2) // Adjust for longitude spacing
+
+                coordinates.add(Pair(lat, lon))
             }
         }
 
+
+        Log.d("Grid Centering", "📍 Grid Centered on ($latCenter, $lonCenter)")
+
+        Log.d("Grid Centering", "📍 Centered on ($latCenter, $lonCenter)")
+
         val batches = coordinates.chunked(50).map { batch ->
-            val coordinateString =
-                batch.joinToString(separator = ",") { "[${it.first},${it.second}]" }
-            val encodedCoordinates = URLEncoder.encode("[$coordinateString]", "UTF-8")
-            "https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&geojson=false&punkter=$encodedCoordinates"
+            val coordinateArray = batch.joinToString(",") { "[${it.second},${it.first}]" } // 🛠️ Fix order: (longitude, latitude)
+            val apiUrl = "https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&geojson=false&punkter=[$coordinateArray]"
+
+            Log.d("API Request", "📡 Sending request: $apiUrl") // ✅ Debugging
+            apiUrl
         }
+
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val responses = batches.map { url ->
                     val response = api.getElevationBatch(url).execute()
-                    response.body()
+
+                    if (response.isSuccessful) {
+                        val body = response.body()
+                        Log.d("API Response", "📡 Full API Response: $body") // ✅ Print full response
+                        body
+                    } else {
+                        Log.e("API Error", "❌ Failed to fetch elevation: ${response.errorBody()?.string()}")
+                        null
+                    }
                 }
+
+
 
                 val elevationData = MutableList(gridSize) { MutableList(gridSize) { 0.0 } }
 
@@ -107,7 +157,6 @@ class MainActivity : AppCompatActivity() {
                                 val elevation =
                                     if (terrainType == "Havflate") 0.0 else point.elevation
                                 elevationData[y][x] = elevation
-
                             }
                         }
                     }
@@ -116,15 +165,16 @@ class MainActivity : AppCompatActivity() {
                 cachedElevationData = elevationData
 
                 withContext(Dispatchers.Main) {
-                    val interpolatedElevationData = upscaleElevationData(elevationData, 200) // 🔹 Scale up
-                    onElevationDataFetched(interpolatedElevationData) // 🔹 Use new upscaled data
+                    val interpolatedElevationData = upscaleElevationData(elevationData, 200)
+                    onElevationDataFetched(interpolatedElevationData)
                 }
             } catch (e: Exception) {
                 Log.e("API", "❌ Error fetching elevation: ${e.message}")
             }
         }
     }
-    // Interpoering for å gjøre meshen større
+
+    // ✅ Scale up elevation data
     fun upscaleElevationData(apiGrid: List<List<Double>>, newSize: Int): List<List<Double>> {
         val oldSize = apiGrid.size
         val scale = (oldSize - 1).toDouble() / (newSize - 1).toDouble()
@@ -157,30 +207,27 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        Log.d("ElevationData", "✅ Interpolated ${apiGrid.size}x${apiGrid.size} grid to ${newSize}x${newSize}")
         return newGrid
     }
 
-
-    fun onElevationDataFetched(elevationData: List<List<Double>>) {
-        Log.d("ElevationData", "✅ Processing elevation data...")
+    private fun onElevationDataFetched(elevationData: List<List<Double>>) {
+        Log.d("ElevationData", "✅ Received Elevation Data: ${elevationData.flatten()}") // ✅ Debug log
 
         terrainMesh?.destroyMesh()
         terrainMesh = TerrainMesh(filamentRenderer.engine, elevationData, this@MainActivity)
 
-        val renderable = terrainMesh?.getRenderable()
-        if (renderable != null && renderable != 0) {
-            filamentRenderer.addRenderable(renderable)
-            filamentRenderer.render()
-
-            // ✅ Force a full render cycle
-            surfaceView.postDelayed({ filamentRenderer.render() }, 100)
-
-            Log.d("MainActivity", "✅ Terrain added and rendering started!")
-        } else {
-            Log.e("MainActivity", "❌ Renderable entity is invalid! Terrain might not be visible.")
+        terrainMesh?.getRenderable()?.let { renderable ->
+            if (renderable != 0) {
+                filamentRenderer.addRenderable(renderable)
+                filamentRenderer.render()
+            } else {
+                Log.e("MainActivity", "❌ Renderable entity is invalid!")
+            }
         }
     }
 
 
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+    }
 }

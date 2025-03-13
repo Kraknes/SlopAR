@@ -94,9 +94,12 @@ class TerrainMesh(
 
                 uvs[uvIndex] = x.toFloat() / terrainSizeX
                 uvs[uvIndex + 1] = normalizedHeight.toFloat()
-            }
-        }
 
+
+            }
+
+        }
+        Log.d("TerrainMesh", "✅ Generating mesh with ${elevationData.size}x${elevationData[0].size} points.")
         // ✅ Allocate buffers efficiently
         val positionBuffer = ByteBuffer.allocateDirect(positions.size * 4)
             .order(ByteOrder.nativeOrder())
