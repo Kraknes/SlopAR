@@ -3,11 +3,9 @@ package com.example.ny_slopar.render
 import android.content.Context
 import android.opengl.Matrix
 import android.util.Log
-import androidx.compose.ui.geometry.times
 import com.google.android.filament.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.time.times
 
 class TerrainMesh(
     private val engine: Engine,
@@ -24,14 +22,12 @@ class TerrainMesh(
         if (elevationData.isNotEmpty() && elevationData[0].isNotEmpty()) {
             val minElevation = elevationData.flatten().minOrNull() ?: 0.0
             val maxElevation = elevationData.flatten().maxOrNull() ?: minElevation
+            val safeMin = minElevation.toFloat()
+            val safeMax = maxElevation.toFloat().coerceAtLeast(safeMin + 1.0f) // Prevent zero range
 
-            // ✅ Ensure a valid range (avoid minHeight == maxHeight issue)
-            val adjustedMinHeight = minElevation.toFloat()
-            val adjustedMaxHeight = maxElevation.toFloat().coerceAtLeast(adjustedMinHeight + 1.0f) // ✅ Prevents zero range
+            Log.d("TerrainMesh", "✅ MinHeight: $safeMin, MaxHeight: $safeMax")
 
-            Log.d("TerrainMesh", "✅ MinHeight: $adjustedMinHeight, MaxHeight: $adjustedMaxHeight")
-
-            loadMaterial(adjustedMinHeight, adjustedMaxHeight) // ✅ Pass adjusted values
+            loadMaterial(safeMin, safeMax)
             generateTerrainMesh()
         } else {
             Log.e("TerrainMesh", "❌ Elevation data is empty! Material and mesh not initialized.")
@@ -40,8 +36,6 @@ class TerrainMesh(
 
     private fun loadMaterial(minElevation: Float, maxElevation: Float) {
         try {
-            val adjustedMinHeight = minElevation
-            val adjustedMaxHeight = maxElevation.coerceAtLeast(adjustedMinHeight + 1.0f)
             val buffer = context.assets.open("terrain_material.filamat").use { it.readBytes() }
             val byteBuffer = ByteBuffer.allocateDirect(buffer.size)
                 .order(ByteOrder.nativeOrder())
@@ -56,22 +50,9 @@ class TerrainMesh(
                 Log.e("TerrainMesh", "❌ Failed to create terrain material!")
             } else {
                 material = loadedMaterial.createInstance()
-                material?.setParameter("minHeight", adjustedMinHeight)
-                material?.setParameter("maxHeight", adjustedMaxHeight)
-
-                Log.d("TerrainMesh", "✅ MinHeight: $minElevation, MaxHeight: $maxElevation")
-
-                // 🔹 Debug: Print ALL height values with normalization
-                for (y in elevationData.indices) {
-                    for (x in elevationData[y].indices) {
-                        val normalizedHeight =
-                            ((elevationData[y][x] - minElevation) / (maxElevation - minElevation)).toFloat()
-//                        Log.d(
-//                            "TerrainMesh",
-//                            "🔹 Height: ${elevationData[y][x]}, Normalized: $normalizedHeight"
-//                        )
-                    }
-                }
+                material?.setParameter("minHeight", minElevation)
+                material?.setParameter("maxHeight", maxElevation)
+                Log.d("TerrainMesh", "✅ Material parameters set: MinHeight: $minElevation, MaxHeight: $maxElevation")
             }
         } catch (e: Exception) {
             Log.e("TerrainMesh", "❌ Failed to load material: ${e.message}")
@@ -80,7 +61,7 @@ class TerrainMesh(
     }
 
     private fun generateTerrainMesh() {
-        destroyMesh() // ✅ Clear old data
+        destroyMesh()
 
         if (elevationData.isEmpty() || elevationData[0].isEmpty()) {
             Log.e("TerrainMesh", "❌ Elevation data is empty!")
@@ -93,46 +74,30 @@ class TerrainMesh(
         val positions = FloatArray(vertexCount * 3)
         val uvs = FloatArray(vertexCount * 2)
 
-        // ✅ Compute min & max elevation
         val minElevation = elevationData.flatten().minOrNull() ?: 0.0
         val maxElevation = elevationData.flatten().maxOrNull() ?: minElevation
-        val adjustedMinHeight = minElevation.toFloat()
-        val adjustedMaxHeight = maxElevation.toFloat().coerceAtLeast(adjustedMinHeight + 1.0f) // ✅ Prevents zero range
-        val elevationRange = maxElevation - minElevation
-        val safeRange = if (elevationRange == 0.0) 1.0 else elevationRange // ✅ Prevent division by zero
+        val elevationRange = (maxElevation - minElevation).takeIf { it > 0.0 } ?: 1.0 // Prevent div by zero
 
-        Log.d("TerrainMesh", "✅ MinHeight: $minElevation, MaxHeight: $maxElevation")
-        Log.d("TerrainMesh", "✅ Adjusted MinHeight: $adjustedMinHeight, MaxHeight: $adjustedMaxHeight")
-
-        val scaleFactor = when {
-            elevationRange < 10.0 -> 100.0 / elevationRange // ✅ Adjust dynamically
-            else -> 1.5 / elevationRange
-        }
+        val terrainScale = 10.0f  // Adjust terrain size
+        val heightScale = 400.0f   // Exaggerate elevation for visibility
 
         for (y in elevationData.indices) {
             for (x in elevationData[y].indices) {
                 val index = (y * terrainSizeX + x) * 3
                 val uvIndex = (y * terrainSizeX + x) * 2
-                val terrainScale = 10.0f  // ✅ Increase terrain scale (Change as needed)
-                val heightScale = 150.0f   // ✅ Exaggerate elevation to make it visible
 
-                // ✅ Normalize height before scaling
-                val normalizedHeight = (elevationData[y][x] - minElevation) / (maxElevation - minElevation)
+                // Normalize height and apply scaling
+                val normalizedHeight = ((elevationData[y][x] - minElevation) / elevationRange).toFloat()
                 positions[index] = (x * terrainScale).toFloat()  // ✅ Scale X (east-west)
-                positions[index + 1] = ((normalizedHeight * heightScale).toFloat()) // ✅ Scale Y (height)
+                positions[index + 1] = (normalizedHeight * heightScale).toFloat()  // ✅ Elevation scaling
                 positions[index + 2] = -(y * terrainScale).toFloat()  // ✅ Scale Z (north-south)
-
 
                 uvs[uvIndex] = x.toFloat() / terrainSizeX
                 uvs[uvIndex + 1] = normalizedHeight.toFloat()
-                Log.d("TerrainMesh", "🔹 UV Height at ($x, $y): $normalizedHeight")
             }
         }
 
-        // ✅ Pass min/max elevation to material
-        loadMaterial(adjustedMinHeight, adjustedMaxHeight)
-
-        // ✅ Fast buffer allocation
+        // ✅ Allocate buffers efficiently
         val positionBuffer = ByteBuffer.allocateDirect(positions.size * 4)
             .order(ByteOrder.nativeOrder())
             .asFloatBuffer()
@@ -149,11 +114,11 @@ class TerrainMesh(
             .vertexCount(vertexCount)
             .bufferCount(2)
             .attribute(VertexBuffer.VertexAttribute.POSITION, 0, VertexBuffer.AttributeType.FLOAT3, 0, 0)
-            .attribute(VertexBuffer.VertexAttribute.UV0, 1, VertexBuffer.AttributeType.FLOAT2, 0, 0) // ✅ Add UV mapping
+            .attribute(VertexBuffer.VertexAttribute.UV0, 1, VertexBuffer.AttributeType.FLOAT2, 0, 0)
             .build(engine)
 
         vertexBuffer.setBufferAt(engine, 0, positionBuffer)
-        vertexBuffer.setBufferAt(engine, 1, uvBuffer) // ✅ Pass UV data
+        vertexBuffer.setBufferAt(engine, 1, uvBuffer)
 
         // ✅ Generate indices
         val indices = mutableListOf<Short>()
@@ -189,10 +154,25 @@ class TerrainMesh(
         RenderableManager.Builder(1)
             .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vertexBuffer, indexBuffer)
             .material(0, material!!)
-            .boundingBox(Box(floatArrayOf(0f, 0f, 0f), floatArrayOf(100f, 50f, 100f)))
+            .boundingBox(Box(floatArrayOf(0f, 0f, 0f), floatArrayOf(1000f, 300f, 1000f))) // Increased size
             .build(engine, renderable)
 
-        Log.d("TerrainMesh", "✅ Generated terrain mesh successfully.")
+        val transformManager = engine.transformManager
+        val instance = transformManager.getInstance(renderable)
+
+        if (instance != 0) {
+            val matrix = FloatArray(16)
+            Matrix.setIdentityM(matrix, 0)
+            Matrix.translateM(matrix, 0, -terrainSizeX / 2f, -10f, -terrainSizeY / 2f) // Centering fix
+            Matrix.scaleM(matrix, 0, 10f, 5.0f, 10f) // Adjust scale
+
+            transformManager.setTransform(instance, matrix)
+            Log.d("TerrainMesh", "✅ Transform applied.")
+        } else {
+            Log.e("TerrainMesh", "❌ Transform instance is invalid!")
+        }
+
+        Log.d("TerrainMesh", "✅ Terrain mesh generated successfully.")
     }
 
     fun getRenderable(): Int = renderable

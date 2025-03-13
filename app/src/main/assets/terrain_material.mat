@@ -1,6 +1,6 @@
 material {
     name : terrain_material,
-    shadingModel : lit,
+    shadingModel : unlit,
     parameters : [
         { type : float, name : minHeight },
         { type : float, name : maxHeight }
@@ -14,20 +14,23 @@ fragment {
         prepareMaterial(material);
 
         // Normalized height from 0 (low) to 1 (high)
-        float heightNorm = clamp(getUV0().y, 0.0, 1.0);
+        float heightNorm = 1.0 - clamp(getUV0().y, 0.0, 1.0);
 
         // Multi-color gradient
         vec3 color;
-        if (heightNorm < 0.33) {
-            // Low elevations (Blue → Green)
-            color = mix(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), heightNorm / 0.33);
+       if (heightNorm < 0.03) {
+        color = vec3(0.0, 0.0, 1.0);} // blue colour
+       else if (heightNorm >= 0.03 && heightNorm <=0.33) {
+            // Low elevations (Green -> yellow)
+            color = mix(vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), heightNorm / 0.33);
         } else if (heightNorm < 0.66) {
-            // Mid elevations (Green → Yellow)
-            color = mix(vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), (heightNorm - 0.33) / 0.33);
+            // Mid elevations (Yellow -> red)
+            color = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), (heightNorm - 0.33) / 0.33);
         } else {
-            // High elevations (Yellow → Red)
-            color = mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), (heightNorm - 0.66) / 0.34);
+            // High elevations (Red → Purple)
+            color = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 1.0), (heightNorm - 0.66) / 0.33);
         }
+
 
         material.baseColor.rgb = color;
     }
